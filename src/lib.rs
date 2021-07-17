@@ -332,9 +332,11 @@ mod tests {
 
     #[test]
     fn set_application_name_test() {
-        let mut x = Store::new("test").unwrap();
-        assert_eq!(x.application_name, "test");
-        x.set_application_name("test2");
-        assert_eq!(x.application_name, "test2");
+        let mut x = Store::new("test_set_app_name").unwrap();
+        assert_eq!(x.application_name, "test_set_app_name");
+        x.set_application_name("test_set_app_name_2");
+        assert_eq!(x.application_name, "test_set_app_name_2");
+        x.application_name = "test_set_app_name_3";
+        assert_eq!(x.application_name, "test_set_app_name_3");
     }
 }
