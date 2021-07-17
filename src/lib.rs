@@ -1,16 +1,20 @@
 /// A simple to use config storage library for Rust.
+mod error;
+
 use dirs;
+use error::Error;
+use json_dotpath::DotPaths;
 use serde::Serialize;
 use serde_json::{self, Value};
 use std::{
     fs::{self, File},
-    io::Write,
     path::{Path, PathBuf},
+    result,
 };
 
-use json_dotpath::DotPaths;
-
 const STORE_NAME: &str = "store.json";
+
+pub type Result<T> = result::Result<T, Error>;
 
 /// Represents a store of configuration data in a JSON format.
 pub struct Store {
@@ -31,34 +35,31 @@ impl Store {
     ///
     /// ```rust
     /// # use bland::Store;
-    /// let store = Store::new("my-app");
+    /// let store = Store::new("my-app").unwrap();
     /// ```
-    pub fn new(application_name: &'static str) -> Self {
-        if let Some(base_dirs) = dirs::config_dir() {
-            let root_path = base_dirs.to_path_buf();
-            return Self {
-                path: root_path,
-                application_name: application_name,
-            };
-        } else {
-            panic!("Config dir not found!");
+    pub fn new(application_name: &'static str) -> Result<Self> {
+        match dirs::config_dir() {
+            Some(base_dirs) => {
+                let root_path = base_dirs.to_path_buf();
+                return Ok(Self {
+                    path: root_path,
+                    application_name: application_name,
+                });
+            }
+            None => Err(Error::ConfigDir),
         }
     }
 
-    /// Stores the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
+    /// Inserts the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
     ///
     /// **NOTE:** This will create the store directory and file if it doesn't exist.
-    ///
-    /// # Prohibited store actions
-    /// You cannot over-write existing data in the store if it has children.
-    /// If you want to over-write this data, you must delete the existing data first.
     ///
     /// # Example
     ///
     /// ```rust
     /// # use bland::Store;
-    /// let store = Store::new("my-app");
-    /// store.store("a.b", 42).unwrap();
+    /// let store = Store::new("my-app").unwrap();
+    /// store.insert("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// # store.delete_store().unwrap();
     /// ```
@@ -70,25 +71,41 @@ impl Store {
     ///     }
     /// }
     /// ```
-    pub fn store<T>(&self, path: &str, data: T) -> Result<(), ()>
+    ///
+    /// # Panics
+    ///
+    /// Panics if
+    /// * the store fails to be created.
+    /// * it fails to read the store file.
+    /// * the store cannot be deserialized.
+    /// * the store file fails to be written to.
+    /// * `path` is not a valid dot path.
+    pub fn insert<T>(&self, path: &str, data: T) -> Result<()>
     where
         T: Serialize,
     {
-        if let Ok(json_data) = serde_json::to_value(&data) {
-            if !self.store_exists() {
-                if let Err(_) = self.create_store() {
-                    return Err(());
-                };
-            }
-            if let Ok(mut parsed_json) = self.get_store_as_parsed_json() {
-                if let Ok(_) = DotPaths::dot_set(&mut parsed_json, path, json_data) {
-                    if let Ok(_) = self.write_store(parsed_json.to_string()) {
-                        return Ok(());
+        match serde_json::to_value(&data) {
+            Ok(json_data) => {
+                if !self.store_exists() {
+                    if let Err(e) = self.create_store() {
+                        return Err(Error::from(e));
+                    };
+                }
+                match self.get_store_as_parsed_json() {
+                    Ok(mut parsed_json) => {
+                        match DotPaths::dot_set(&mut parsed_json, path, json_data) {
+                            Ok(_) => match self.write_store(parsed_json.to_string()) {
+                                Ok(_) => return Ok(()),
+                                Err(e) => Err(Error::from(e)),
+                            },
+                            Err(e) => Err(Error::from(e)),
+                        }
                     }
+                    Err(e) => Err(e),
                 }
             }
+            Err(e) => Err(Error::from(e)),
         }
-        Err(())
     }
 
     /// Deletes the given path from the store.
@@ -97,25 +114,36 @@ impl Store {
     ///
     /// ```rust
     /// # use bland::Store;
-    /// let store = Store::new("my-app");
-    /// store.store("a.b", 42).unwrap();
+    /// let store = Store::new("my-app").unwrap();
+    /// store.insert("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// store.delete("a.b").unwrap();
     /// assert!(store.get("a.b").unwrap().is_none());
     /// # store.delete_store().unwrap();
     /// ```
-    pub fn delete(&self, path: &str) -> Result<Option<Value>, ()> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if
+    /// * the store does not exist.
+    /// * it fails to read the store file.
+    /// * the store cannot be deserialized.
+    /// * the store file fails to be written to.
+    /// * `path` is not a valid dot path.
+    pub fn delete(&self, path: &str) -> Result<Option<Value>> {
         if !self.store_exists() {
-            return Err(());
+            return Err(Error::NotFound);
         }
-        if let Ok(mut parsed_json) = self.get_store_as_parsed_json() {
-            if let Ok(value) = DotPaths::dot_take::<Value>(&mut parsed_json, path) {
-                if let Ok(_) = self.write_store(parsed_json.to_string()) {
-                    return Ok(value);
-                }
-            }
+        match self.get_store_as_parsed_json() {
+            Ok(mut parsed_json) => match DotPaths::dot_take::<Value>(&mut parsed_json, path) {
+                Ok(value) => match self.write_store(parsed_json.to_string()) {
+                    Ok(_) => return Ok(value),
+                    Err(e) => Err(Error::from(e)),
+                },
+                Err(e) => Err(Error::from(e)),
+            },
+            Err(e) => Err(e),
         }
-        Err(())
     }
 
     /// Returns the value at the given path from the store.
@@ -124,27 +152,37 @@ impl Store {
     ///
     /// ```rust
     /// # use bland::Store;
-    /// let store = Store::new("my-app");
-    /// store.store("a.b", 42).unwrap();
+    /// let store = Store::new("my-app").unwrap();
+    /// store.insert("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// # store.delete_store().unwrap();
     /// ```
-    pub fn get(&self, path: &str) -> Result<Option<Value>, ()> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if
+    /// * the store does not exist.
+    /// * it fails to read the store file.
+    /// * the store cannot be deserialized.
+    /// * `path` is not a valid dot path.
+    /// * `path` attempts to access an index out of bounds.
+    pub fn get(&self, path: &str) -> Result<Option<Value>> {
         if !self.store_exists() {
-            return Err(());
+            return Err(Error::NotFound);
         }
-        if let Ok(parsed_json) = self.get_store_as_parsed_json() {
-            if let Ok(res) = DotPaths::dot_get::<Value>(&parsed_json, path) {
-                match res {
-                    Some(value) => return Ok(Some(value)),
-                    None => return Ok(None),
-                }
-            }
+        match self.get_store_as_parsed_json() {
+            Ok(parsed_json) => match DotPaths::dot_get::<Value>(&parsed_json, path) {
+                Ok(res) => match res {
+                    Some(value) => Ok(Some(value)),
+                    None => Ok(None),
+                },
+                Err(e) => Err(Error::from(e)),
+            },
+            Err(err) => Err(err),
         }
-        Err(())
     }
 
-    /// Get the directory where the configuration data is stored.
+    /// Get the path to the directory where the configuration data is stored.
     pub fn get_store_dir_path(&self) -> PathBuf {
         let mut store_path = self.path.clone();
         store_path.push(self.application_name);
@@ -163,30 +201,48 @@ impl Store {
         self.application_name = new_name;
     }
 
-    fn make_store_path(&self) -> Result<(), std::io::Error> {
-        fs::create_dir(self.get_store_dir_path())
+    /// Makes the store directory if it does not exist.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store directory cannot be created.
+    fn make_store_path(&self) -> Result<()> {
+        fs::create_dir(self.get_store_dir_path()).map_err(|e| Error::from(e))
     }
 
     /// Makes a new store file. Creates the directory if it doesn't exist.
-    pub fn create_store(&self) -> Result<(), ()> {
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store file directory be created.
+    /// Panics if the store file cannot be created.
+    /// Panics is the store file cannot be initialized.
+    pub fn create_store(&self) -> Result<()> {
         if !self.store_dir_exists() {
-            if let Err(_) = self.make_store_path() {
-                return Err(());
+            if let Err(e) = self.make_store_path() {
+                return Err(e);
             };
         }
-        if let Ok(file) = File::create(self.get_store_path()) {
-            if let Ok(_) = Store::init_store(file) {
-                return Ok(());
-            }
+        match File::create(self.get_store_path()) {
+            Ok(_) => match self.init_store() {
+                Ok(_) => return Ok(()),
+                Err(e) => Err(e),
+            },
+            Err(e) => Err(Error::from(e)),
         }
-        Err(())
     }
 
-    fn init_store(mut file: File) -> Result<(), ()> {
-        match file.write_all("{}".as_bytes()) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(()),
-        }
+    /// Initializes the store file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store file cannot be wrote to.
+    fn init_store(&self) -> Result<()> {
+        self.write_store("{}".to_string())
+        // match file.write_all("{}".as_bytes()) {
+        //     Ok(_) => Ok(()),
+        //     Err(e) => Err(Error::from(e)),
+        // }
     }
 
     /// Returns a boolean indicating whether the store directory exists.
@@ -200,24 +256,41 @@ impl Store {
     }
 
     /// Deletes the store file and directory.
-    pub fn delete_store(&self) -> Result<(), std::io::Error> {
-        fs::remove_dir_all(self.get_store_dir_path())
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store file cannot be deleted.
+    pub fn delete_store(&self) -> Result<()> {
+        fs::remove_dir_all(self.get_store_dir_path()).map_err(|e| Error::from(e))
     }
 
-    fn write_store(&self, data: String) -> Result<(), std::io::Error> {
-        fs::write(self.get_store_path(), data)
+    /// Writes the store file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store file cannot be written to.
+    fn write_store(&self, data: String) -> Result<()> {
+        fs::write(self.get_store_path(), data).map_err(|e| Error::from(e))
     }
 
-    fn get_store_as_parsed_json(&self) -> Result<Value, ()> {
+    /// Returns the parsed JSON of the store file.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the store file does not exist.
+    /// Panics if the store file cannot be read.
+    /// Panics if the store file cannot be deserialized.
+    fn get_store_as_parsed_json(&self) -> Result<Value> {
         if !self.store_exists() {
-            return Err(());
+            return Err(Error::NotFound);
         }
-        if let Ok(store) = fs::read_to_string(self.get_store_path()) {
-            if let Ok(parsed_json) = serde_json::from_str::<Value>(&store) {
-                return Ok(parsed_json);
-            }
+        match fs::read_to_string(self.get_store_path()) {
+            Ok(store) => match serde_json::from_str(&store) {
+                Ok(parsed_json) => return Ok(parsed_json),
+                Err(e) => Err(Error::from(e)),
+            },
+            Err(e) => Err(Error::from(e)),
         }
-        Err(())
     }
 }
 
@@ -235,28 +308,28 @@ mod tests {
 
     #[test]
     fn store_get() {
-        let x = Store::new("test");
-        clean_store(&x);
-        x.store("a.b", "test1").unwrap();
-        x.store("c", [4, 2, 7]).unwrap();
+        let x = Store::new("store_get_test").unwrap();
+        x.insert("a.b", "test1").unwrap();
+        x.insert("c", [4, 2, 7]).unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
         assert_eq!(x.get("c").unwrap().unwrap().as_array().unwrap().len(), 3);
         assert_eq!(x.get("d").unwrap(), None);
+        clean_store(&x);
     }
 
     #[test]
     fn store_delete() {
-        let x = Store::new("test");
-        clean_store(&x);
-        x.store("a.b", "test1").unwrap();
+        let x = Store::new("store_delete_test").unwrap();
+        x.insert("a.b", "test1").unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
         x.delete("a").unwrap();
         assert_eq!(x.get("a").unwrap(), None);
+        clean_store(&x);
     }
 
     #[test]
     fn set_application_name_test() {
-        let mut x = Store::new("test");
+        let mut x = Store::new("test").unwrap();
         assert_eq!(x.application_name, "test");
         x.set_application_name("test2");
         assert_eq!(x.application_name, "test2");
