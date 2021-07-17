@@ -14,6 +14,9 @@ use std::{
 
 const STORE_NAME: &str = "store.json";
 
+/// Convenience type for resulting from a `Result<T>` using [`Result`].
+///
+/// [`Result`]: `https://doc.rust-lang.org/std/result/enum.Result.html`
 pub type Result<T> = result::Result<T, Error>;
 
 /// Represents a store of configuration data in a JSON format.
