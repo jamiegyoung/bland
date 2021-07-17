@@ -1,4 +1,4 @@
-# simple-config-store
+# bland
 A simple config store for rust programs.
 
 # Documentation
