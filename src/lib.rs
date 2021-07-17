@@ -12,8 +12,6 @@ use std::{
     result,
 };
 
-const STORE_NAME: &str = "store.json";
-
 /// Convenience type for resulting from a `Result<T>` using [`Result`].
 ///
 /// [`Result`]: `https://doc.rust-lang.org/std/result/enum.Result.html`
@@ -23,12 +21,18 @@ pub type Result<T> = result::Result<T, Error>;
 pub struct Store<'a> {
     /// The base directory for the store.
     path: PathBuf,
-    /// The application's name
-    pub application_name: &'a str,
+    /// The project's name
+    pub project_name: &'a str,
+    /// The configuration name
+    pub config_name: &'a str,
+    /// The file extension for configuration files.
+    pub file_extension: &'a str,
+    /// The project name's suffix
+    pub project_suffix: &'a str,
 }
 
 impl Store<'_> {
-    /// Creates a new instance of the store requiring an application name.
+    /// Creates a new instance of the store requiring the project's name.
     /// This name will be used as the folder name to store the configuration data.
     /// The default store location is the application configuration directory.
     ///
@@ -40,20 +44,23 @@ impl Store<'_> {
     /// # use bland::Store;
     /// let store = Store::new("my-app").unwrap();
     /// ```
-    pub fn new(application_name: &'static str) -> Result<Self> {
+    pub fn new(project_name: &'static str) -> Result<Self> {
         match dirs::config_dir() {
             Some(base_dirs) => {
                 let root_path = base_dirs.to_path_buf();
                 return Ok(Self {
                     path: root_path,
-                    application_name: application_name,
+                    project_name,
+                    config_name: "config",
+                    file_extension: "json",
+                    project_suffix: "rs",
                 });
             }
             None => Err(Error::ConfigDir),
         }
     }
 
-    /// Inserts the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
+    /// Sets the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
     ///
     /// **NOTE:** This will create the store directory and file if it doesn't exist.
     ///
@@ -62,7 +69,7 @@ impl Store<'_> {
     /// ```rust
     /// # use bland::Store;
     /// let store = Store::new("my-app").unwrap();
-    /// store.insert("a.b", 42).unwrap();
+    /// store.set("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// # store.delete_store().unwrap();
     /// ```
@@ -83,7 +90,7 @@ impl Store<'_> {
     /// * the store cannot be deserialized.
     /// * the store file fails to be written to.
     /// * `path` is not a valid dot path.
-    pub fn insert<T>(&self, path: &str, data: T) -> Result<()>
+    pub fn set<T>(&self, path: &str, data: T) -> Result<()>
     where
         T: Serialize,
     {
@@ -118,7 +125,7 @@ impl Store<'_> {
     /// ```rust
     /// # use bland::Store;
     /// let store = Store::new("my-app").unwrap();
-    /// store.insert("a.b", 42).unwrap();
+    /// store.set("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// store.delete("a.b").unwrap();
     /// assert!(store.get("a.b").unwrap().is_none());
@@ -156,7 +163,7 @@ impl Store<'_> {
     /// ```rust
     /// # use bland::Store;
     /// let store = Store::new("my-app").unwrap();
-    /// store.insert("a.b", 42).unwrap();
+    /// store.set("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// # store.delete_store().unwrap();
     /// ```
@@ -185,23 +192,32 @@ impl Store<'_> {
         }
     }
 
+    pub fn clear(&self) -> Result<()> {
+        if !self.store_exists() {
+            return Err(Error::NotFound);
+        }
+        self.write_store("{}".to_string())
+    }
+
     /// Get the path to the directory where the configuration data is stored.
     pub fn get_store_dir_path(&self) -> PathBuf {
         let mut store_path = self.path.clone();
-        store_path.push(self.application_name);
+        let mut project_name = self.project_name.to_owned();
+        project_name.push_str("-");
+        project_name.push_str(self.project_suffix);
+
+        store_path.push(project_name);
         return store_path;
     }
 
     /// Get the path to the configuration file.
     pub fn get_store_path(&self) -> PathBuf {
         let mut store_dir_path = self.get_store_dir_path();
-        store_dir_path.push(STORE_NAME);
+        let mut file_name = PathBuf::new();
+        file_name.push(self.project_name);
+        file_name.set_extension(self.file_extension);
+        store_dir_path.push(file_name);
         return store_dir_path;
-    }
-
-    /// Set the app name.
-    pub fn set_application_name(&mut self, new_name: &'static str) {
-        self.application_name = new_name;
     }
 
     /// Makes the store directory if it does not exist.
@@ -310,8 +326,8 @@ mod tests {
     #[test]
     fn store_get() {
         let x = Store::new("store_get_test").unwrap();
-        x.insert("a.b", "test1").unwrap();
-        x.insert("c", [4, 2, 7]).unwrap();
+        x.set("a.b", "test1").unwrap();
+        x.set("c", [4, 2, 7]).unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
         assert_eq!(x.get("c").unwrap().unwrap().as_array().unwrap().len(), 3);
         assert_eq!(x.get("d").unwrap(), None);
@@ -321,7 +337,7 @@ mod tests {
     #[test]
     fn store_delete() {
         let x = Store::new("store_delete_test").unwrap();
-        x.insert("a.b", "test1").unwrap();
+        x.set("a.b", "test1").unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
         x.delete("a").unwrap();
         assert_eq!(x.get("a").unwrap(), None);
@@ -329,12 +345,15 @@ mod tests {
     }
 
     #[test]
-    fn set_application_name_test() {
-        let mut x = Store::new("test_set_app_name").unwrap();
-        assert_eq!(x.application_name, "test_set_app_name");
-        x.set_application_name("test_set_app_name_2");
-        assert_eq!(x.application_name, "test_set_app_name_2");
-        x.application_name = "test_set_app_name_3";
-        assert_eq!(x.application_name, "test_set_app_name_3");
+    fn clear() {
+        let x = Store::new("clear_test").unwrap();
+        x.set("a.b", "test1").unwrap();
+        x.set("c", [4, 2, 7]).unwrap();
+        assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
+        assert_eq!(x.get("c").unwrap().unwrap().as_array().unwrap().len(), 3);
+        x.clear().unwrap();
+        assert_eq!(x.get("a.b").unwrap(), None);
+        assert_eq!(x.get("c").unwrap(), None);
+        clean_store(&x);
     }
 }
