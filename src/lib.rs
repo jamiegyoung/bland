@@ -1,5 +1,4 @@
 /// A simple to use config storage library for Rust.
-
 use dirs;
 use serde::Serialize;
 use serde_json::{self, Value};
@@ -81,12 +80,10 @@ impl Store {
                     return Err(());
                 };
             }
-            let parsed_json_res = self.get_store_as_parsed_json();
-            if let Ok(mut parsed_json) = parsed_json_res {
+            if let Ok(mut parsed_json) = self.get_store_as_parsed_json() {
                 if let Ok(_) = DotPaths::dot_set(&mut parsed_json, path, json_data) {
-                    match self.write_store(parsed_json.to_string()) {
-                        Ok(_) => return Ok(()),
-                        Err(_) => return Err(()),
+                    if let Ok(_) = self.write_store(parsed_json.to_string()) {
+                        return Ok(());
                     }
                 }
             }
@@ -111,12 +108,10 @@ impl Store {
         if !self.store_exists() {
             return Err(());
         }
-        let parsed_json = self.get_store_as_parsed_json();
-        if let Ok(mut parsed_json) = parsed_json {
+        if let Ok(mut parsed_json) = self.get_store_as_parsed_json() {
             if let Ok(value) = DotPaths::dot_take::<Value>(&mut parsed_json, path) {
-                match self.write_store(parsed_json.to_string()) {
-                    Ok(_) => return Ok(value),
-                    Err(_) => return Err(()),
+                if let Ok(_) = self.write_store(parsed_json.to_string()) {
+                    return Ok(value);
                 }
             }
         }
