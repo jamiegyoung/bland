@@ -297,8 +297,6 @@ impl Store<'_> {
     }
 }
 
-// Only run tests using the following command:
-// `cargo test -- --test-threads=1`
 #[cfg(test)]
 mod tests {
     use crate::Store;
