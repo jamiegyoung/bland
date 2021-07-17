@@ -17,14 +17,14 @@ const STORE_NAME: &str = "store.json";
 pub type Result<T> = result::Result<T, Error>;
 
 /// Represents a store of configuration data in a JSON format.
-pub struct Store {
+pub struct Store<'a> {
     /// The base directory for the store.
-    pub path: PathBuf,
+    path: PathBuf,
     /// The application's name
-    pub application_name: &'static str,
+    pub application_name: &'a str,
 }
 
-impl Store {
+impl Store<'_> {
     /// Creates a new instance of the store requiring an application name.
     /// This name will be used as the folder name to store the configuration data.
     /// The default store location is the application configuration directory.
