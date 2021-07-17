@@ -60,6 +60,42 @@ impl Store<'_> {
         }
     }
 
+    /// Returns the value at the given path from the store.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # use bland::Store;
+    /// let store = Store::new("get-app").unwrap();
+    /// store.set("a.b", 42).unwrap();
+    /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
+    /// # store.delete_store().unwrap();
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics if
+    /// * the store does not exist.
+    /// * it fails to read the store file.
+    /// * the store cannot be deserialized.
+    /// * `path` is not a valid dot path.
+    /// * `path` attempts to access an index out of bounds.
+    pub fn get(&self, path: &str) -> Result<Option<Value>> {
+        if !self.store_exists() {
+            return Err(Error::NotFound);
+        }
+        match self.get_store_as_parsed_json() {
+            Ok(parsed_json) => match DotPaths::dot_get::<Value>(&parsed_json, path) {
+                Ok(res) => match res {
+                    Some(value) => Ok(Some(value)),
+                    None => Ok(None),
+                },
+                Err(e) => Err(Error::from(e)),
+            },
+            Err(err) => Err(err),
+        }
+    }
+
     /// Sets the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
     ///
     /// **NOTE:** This will create the store directory and file if it doesn't exist.
@@ -68,7 +104,7 @@ impl Store<'_> {
     ///
     /// ```rust
     /// # use bland::Store;
-    /// let store = Store::new("my-app").unwrap();
+    /// let store = Store::new("set-app").unwrap();
     /// store.set("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// # store.delete_store().unwrap();
@@ -80,6 +116,21 @@ impl Store<'_> {
     ///         "b": 42
     ///     }
     /// }
+    /// ```
+    ///
+    /// # Example of a bad set
+    ///
+    /// ```rust
+    /// # use bland::Store;
+    /// let store = Store::new("bad-set-app").unwrap();
+    /// store.set("a", "hello").unwrap();
+    /// match store.set("a.b", "world") {
+    ///     Ok(_) => assert!(false),
+    ///     Err(e) => {
+    ///         assert_eq!(e.to_string(), "Unexpected value reached while traversing path");
+    ///    },
+    /// };
+    /// # store.delete_store().unwrap();
     /// ```
     ///
     /// # Panics
@@ -124,7 +175,7 @@ impl Store<'_> {
     ///
     /// ```rust
     /// # use bland::Store;
-    /// let store = Store::new("my-app").unwrap();
+    /// let store = Store::new("delete-app").unwrap();
     /// store.set("a.b", 42).unwrap();
     /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
     /// store.delete("a.b").unwrap();
@@ -153,42 +204,6 @@ impl Store<'_> {
                 Err(e) => Err(Error::from(e)),
             },
             Err(e) => Err(e),
-        }
-    }
-
-    /// Returns the value at the given path from the store.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # use bland::Store;
-    /// let store = Store::new("my-app").unwrap();
-    /// store.set("a.b", 42).unwrap();
-    /// assert_eq!(store.get("a.b").unwrap().unwrap(), 42);
-    /// # store.delete_store().unwrap();
-    /// ```
-    ///
-    /// # Panics
-    ///
-    /// Panics if
-    /// * the store does not exist.
-    /// * it fails to read the store file.
-    /// * the store cannot be deserialized.
-    /// * `path` is not a valid dot path.
-    /// * `path` attempts to access an index out of bounds.
-    pub fn get(&self, path: &str) -> Result<Option<Value>> {
-        if !self.store_exists() {
-            return Err(Error::NotFound);
-        }
-        match self.get_store_as_parsed_json() {
-            Ok(parsed_json) => match DotPaths::dot_get::<Value>(&parsed_json, path) {
-                Ok(res) => match res {
-                    Some(value) => Ok(Some(value)),
-                    None => Ok(None),
-                },
-                Err(e) => Err(Error::from(e)),
-            },
-            Err(err) => Err(err),
         }
     }
 
@@ -324,7 +339,7 @@ mod tests {
     }
 
     #[test]
-    fn store_get() {
+    fn set_get() {
         let x = Store::new("store_get_test").unwrap();
         x.set("a.b", "test1").unwrap();
         x.set("c", [4, 2, 7]).unwrap();
@@ -335,7 +350,21 @@ mod tests {
     }
 
     #[test]
-    fn store_delete() {
+    fn invalid_set() {
+        let x = Store::new("store_invalid_set_test").unwrap();
+        x.set("x", "test1").unwrap();
+        match x.set("x.a", "test2") {
+            Ok(_) => assert!(false),
+            Err(e) => assert_eq!(
+                e.to_string(),
+                json_dotpath::Error::BadPathElement.to_string()
+            ),
+        };
+        clean_store(&x);
+    }
+
+    #[test]
+    fn delete() {
         let x = Store::new("store_delete_test").unwrap();
         x.set("a.b", "test1").unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
