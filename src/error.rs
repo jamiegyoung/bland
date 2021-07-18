@@ -1,6 +1,8 @@
+#[cfg(feature = "crypto")]
+use aes_gcm::Error as EncryptionError;
 use json_dotpath::Error as JsonDotPathError;
 use serde_json::Error as SerdeJsonError;
-use aes_gcm::Error as EncryptionError;
+use std::string::FromUtf8Error;
 use std::{error, fmt, io};
 
 /// The `Error` type is an enum for all errors that can be thrown by this library.
@@ -16,22 +18,31 @@ pub enum Error {
     Serde(SerdeJsonError),
     /// `ConfigDir` errors are errors that occur when locating the config directory.
     ConfigDir,
+    #[cfg(feature = "crypto")]
     InvalidKeyLength,
+    #[cfg(feature = "crypto")]
     Encryption,
+    #[cfg(feature = "crypto")]
     Decryption,
+    FromUTF8Error(FromUtf8Error),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            // TODO: check this
             Error::Io(ref err) => err.fmt(f),
             Error::NotFound => write!(f, "Store not found"),
             Error::DotPath(ref err) => err.fmt(f),
             Error::Serde(ref err) => err.fmt(f),
             Error::ConfigDir => write!(f, "Config directory not found"),
+            #[cfg(feature = "crypto")]
             Error::Encryption => write!(f, "Encryption error"),
+            #[cfg(feature = "crypto")]
             Error::InvalidKeyLength => write!(f, "Invalid encryption key length"),
+            #[cfg(feature = "crypto")]
             Error::Decryption => write!(f, "Decryption error"),
+            Error::FromUTF8Error(ref err) => err.fmt(f),
         }
     }
 }
@@ -44,9 +55,13 @@ impl error::Error for Error {
             Error::DotPath(ref err) => Some(err),
             Error::Serde(ref err) => Some(err),
             Error::ConfigDir => None,
+            #[cfg(feature = "crypto")]
             Error::Encryption => None,
+            #[cfg(feature = "crypto")]
             Error::InvalidKeyLength => None,
+            #[cfg(feature = "crypto")]
             Error::Decryption => None,
+            Error::FromUTF8Error(ref err) => Some(err),
         }
     }
 }
@@ -73,8 +88,15 @@ impl From<JsonDotPathError> for Error {
 }
 
 /// A function to convert aes_gcm::Error to Error.
+#[cfg(feature = "crypto")]
 impl From<EncryptionError> for Error {
     fn from(_: EncryptionError) -> Error {
         Error::Encryption
+    }
+}
+
+impl From<FromUtf8Error> for Error {
+    fn from(e: FromUtf8Error) -> Error {
+        Error::FromUTF8Error(e)
     }
 }
