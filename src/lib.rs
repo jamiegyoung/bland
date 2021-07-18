@@ -1,3 +1,4 @@
+mod crypto;
 /// A simple to use config storage library for Rust.
 mod error;
 
@@ -8,6 +9,7 @@ use serde::Serialize;
 use serde_json::{self, Value};
 use std::{
     fs::{self, File},
+    ops::Index,
     path::{Path, PathBuf},
     result,
 };
@@ -29,6 +31,8 @@ pub struct Store<'a> {
     pub file_extension: &'a str,
     /// The project name's suffix
     pub project_suffix: &'a str,
+    /// An optional encrpytion key for the store.
+    encryption_key: Option<[u8; 32]>,
 }
 
 impl Store<'_> {
@@ -54,6 +58,7 @@ impl Store<'_> {
                     config_name: "config",
                     file_extension: "json",
                     project_suffix: "rs",
+                    encryption_key: None,
                 });
             }
             None => Err(Error::ConfigDir),
@@ -72,9 +77,9 @@ impl Store<'_> {
     /// # store.delete_store().unwrap();
     /// ```
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if
+    /// Errors if
     /// * the store does not exist.
     /// * it fails to read the store file.
     /// * the store cannot be deserialized.
@@ -133,9 +138,9 @@ impl Store<'_> {
     /// # store.delete_store().unwrap();
     /// ```
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if
+    /// Errors if
     /// * the store fails to be created.
     /// * it fails to read the store file.
     /// * the store cannot be deserialized.
@@ -183,9 +188,9 @@ impl Store<'_> {
     /// # store.delete_store().unwrap();
     /// ```
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if
+    /// Errors if
     /// * the store does not exist.
     /// * it fails to read the store file.
     /// * the store cannot be deserialized.
@@ -237,20 +242,20 @@ impl Store<'_> {
 
     /// Makes the store directory if it does not exist.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the store directory cannot be created.
+    /// Errors if the store directory cannot be created.
     fn make_store_path(&self) -> Result<()> {
         fs::create_dir(self.get_store_dir_path()).map_err(|e| Error::from(e))
     }
 
     /// Makes a new store file. Creates the directory if it doesn't exist.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the store file directory be created.
-    /// Panics if the store file cannot be created.
-    /// Panics is the store file cannot be initialized.
+    /// Errors if the store file directory be created.
+    /// Errors if the store file cannot be created.
+    /// Errors is the store file cannot be initialized.
     pub fn create_store(&self) -> Result<()> {
         if !self.store_dir_exists() {
             if let Err(e) = self.make_store_path() {
@@ -268,9 +273,9 @@ impl Store<'_> {
 
     /// Initializes the store file.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the store file cannot be wrote to.
+    /// Errors if the store file cannot be wrote to.
     fn init_store(&self) -> Result<()> {
         self.write_store("{}".to_string())
         // match file.write_all("{}".as_bytes()) {
@@ -291,46 +296,87 @@ impl Store<'_> {
 
     /// Deletes the store file and directory.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the store file cannot be deleted.
+    /// Errors if the store file cannot be deleted.
     pub fn delete_store(&self) -> Result<()> {
         fs::remove_dir_all(self.get_store_dir_path()).map_err(|e| Error::from(e))
     }
 
     /// Writes the store file.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the store file cannot be written to.
+    /// Errors if the store file cannot be written to.
     fn write_store(&self, data: String) -> Result<()> {
-        fs::write(self.get_store_path(), data).map_err(|e| Error::from(e))
+        match self.encryption_key {
+            Some(key) => {
+                let encrypted_data = crypto::encrypt_data(&data, key)?;
+                return fs::write(self.get_store_path(), encrypted_data)
+                    .map_err(|e| Error::from(e));
+            }
+            None => fs::write(self.get_store_path(), data).map_err(|e| Error::from(e)),
+        }
     }
 
     /// Returns the parsed JSON of the store file.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the store file does not exist.
-    /// Panics if the store file cannot be read.
-    /// Panics if the store file cannot be deserialized.
+    /// Errors if the store file does not exist.
+    /// Errors if the store file cannot be read.
+    /// Errors if the store file cannot be deserialized.
     fn get_store_as_parsed_json(&self) -> Result<Value> {
         if !self.store_exists() {
             return Err(Error::NotFound);
         }
-        match fs::read_to_string(self.get_store_path()) {
-            Ok(store) => match serde_json::from_str(&store) {
-                Ok(parsed_json) => return Ok(parsed_json),
+
+        match self.encryption_key {
+            Some(key) => {
+                let encrypted_data = fs::read(self.get_store_path())?;
+                let data = crypto::decrypt_data(encrypted_data, key)?;
+                match Store::parse_json(data) {
+                    Ok(value) => Ok(value),
+                    Err(e) => Err(Error::from(e)),
+                }
+            }
+            None => match fs::read_to_string(self.get_store_path()) {
+                Ok(store) => match Store::parse_json(store) {
+                    Ok(value) => Ok(value),
+                    Err(e) => Err(Error::from(e)),
+                },
                 Err(e) => Err(Error::from(e)),
             },
+        }
+    }
+
+    fn parse_json(store: String) -> Result<Value> {
+        match serde_json::from_str(&store) {
+            Ok(parsed_json) => return Ok(parsed_json),
             Err(e) => Err(Error::from(e)),
         }
+    }
+
+    /// Sets the encryption key. The key must be less than or equal to 32 bytes.
+    pub fn set_encryption_key(&mut self, key: &str) -> Result<()> {
+        let mut final_bytes = [0; 32];
+        let key_bytes = key.as_bytes().to_vec();
+        if key_bytes.len() > 32 {
+            return Err(Error::InvalidKeyLength);
+        }
+        // probably a better way of doing this...
+        for i in 0..key_bytes.len() {
+            final_bytes[i] = *key_bytes.index(i);
+        }
+
+        self.encryption_key = Some(final_bytes);
+        return Ok(());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::Store;
+    use crate::{error::Error, Store};
 
     fn clean_store(x: &Store) {
         if x.store_exists() {
@@ -384,5 +430,35 @@ mod tests {
         assert_eq!(x.get("a.b").unwrap(), None);
         assert_eq!(x.get("c").unwrap(), None);
         clean_store(&x);
+    }
+
+    #[test]
+    fn set_encryption_key() {
+        let mut x = Store::new("set_encryption_key_test").unwrap();
+        x.set_encryption_key("test_key").unwrap();
+        assert_eq!(
+            x.encryption_key,
+            Some([
+                116, 101, 115, 116, 95, 107, 101, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0
+            ])
+        )
+    }
+
+    #[test]
+    fn invalid_encryption_key() {
+        let mut x = Store::new("invalid_encryption_key_test").unwrap();
+        match x.set_encryption_key("test_key_this_key_will_be_too_long") {
+            Ok(_) => assert!(false),
+            Err(e) => assert_eq!(e.to_string(), Error::InvalidKeyLength.to_string()),
+        };
+    }
+
+    #[test]
+    fn crypto() {
+        let mut x = Store::new("crypto_test").unwrap();
+        x.set_encryption_key("test_key").unwrap();
+        x.set("a", "test1").unwrap();
+        assert_eq!(x.get("a").unwrap().unwrap(), "test1");
     }
 }

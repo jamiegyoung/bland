@@ -1,5 +1,6 @@
 use json_dotpath::Error as JsonDotPathError;
 use serde_json::Error as SerdeJsonError;
+use aes_gcm::Error as EncryptionError;
 use std::{error, fmt, io};
 
 /// The `Error` type is an enum for all errors that can be thrown by this library.
@@ -13,19 +14,24 @@ pub enum Error {
     DotPath(JsonDotPathError),
     /// `SerdeJson` errors are errors that occur when using the `SerdeJson` library.
     Serde(SerdeJsonError),
-    /// `ConfigDir` errors are errors that occur when locating the config directory. 
+    /// `ConfigDir` errors are errors that occur when locating the config directory.
     ConfigDir,
+    InvalidKeyLength,
+    Encryption,
+    Decryption,
 }
-
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Error::Io(ref err) => err.fmt(f),
             Error::NotFound => write!(f, "Store not found"),
-            Error::DotPath(err) => err.fmt(f),
-            Error::Serde(err) => err.fmt(f),
+            Error::DotPath(ref err) => err.fmt(f),
+            Error::Serde(ref err) => err.fmt(f),
             Error::ConfigDir => write!(f, "Config directory not found"),
+            Error::Encryption => write!(f, "Encryption error"),
+            Error::InvalidKeyLength => write!(f, "Invalid encryption key length"),
+            Error::Decryption => write!(f, "Decryption error"),
         }
     }
 }
@@ -38,6 +44,9 @@ impl error::Error for Error {
             Error::DotPath(ref err) => Some(err),
             Error::Serde(ref err) => Some(err),
             Error::ConfigDir => None,
+            Error::Encryption => None,
+            Error::InvalidKeyLength => None,
+            Error::Decryption => None,
         }
     }
 }
@@ -60,5 +69,12 @@ impl From<SerdeJsonError> for Error {
 impl From<JsonDotPathError> for Error {
     fn from(e: JsonDotPathError) -> Error {
         Error::DotPath(e)
+    }
+}
+
+/// A function to convert aes_gcm::Error to Error.
+impl From<EncryptionError> for Error {
+    fn from(_: EncryptionError) -> Error {
+        Error::Encryption
     }
 }
