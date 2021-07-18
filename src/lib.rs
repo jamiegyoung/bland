@@ -3,13 +3,11 @@ mod crypto;
 /// A simple to use config storage library for Rust.
 mod error;
 
-use dirs;
 use error::Error;
 use json_dotpath::DotPaths;
 use serde::Serialize;
 use serde_json::{self, Value};
-#[cfg(feature = "crypto")]
-use std::ops::Index;
+
 use std::{
     fs::{self, File},
     path::{Path, PathBuf},
@@ -54,8 +52,8 @@ impl Store<'_> {
     pub fn new(project_name: &'static str) -> Result<Self> {
         match dirs::config_dir() {
             Some(base_dirs) => {
-                let root_path = base_dirs.to_path_buf();
-                return Ok(Self {
+                let root_path = base_dirs;
+                Ok(Self {
                     path: root_path,
                     project_name,
                     config_name: "config",
@@ -63,7 +61,7 @@ impl Store<'_> {
                     project_suffix: "rs",
                     #[cfg(feature = "crypto")]
                     encryption_key: None,
-                });
+                })
             }
             None => Err(Error::ConfigDir),
         }
@@ -94,7 +92,7 @@ impl Store<'_> {
             return Err(Error::NotFound);
         }
         let parsed_json = self.get_store_as_parsed_json()?;
-        DotPaths::dot_get::<Value>(&parsed_json, path).map_err(|e| Error::from(e))
+        DotPaths::dot_get::<Value>(&parsed_json, path).map_err(Error::from)
     }
 
     /// Sets the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
@@ -185,17 +183,17 @@ impl Store<'_> {
         let mut parsed_json = self.get_store_as_parsed_json()?;
         let value = DotPaths::dot_take::<Value>(&mut parsed_json, path)?;
         self.write_store(parsed_json.to_string())?;
-        return Ok(value);
+        Ok(value)
     }
 
     /// Get the path to the directory where the configuration data is stored.
     pub fn get_store_dir_path(&self) -> PathBuf {
         let mut project_name = self.project_name.to_owned();
-        project_name.push_str("-");
+        project_name.push('-');
         project_name.push_str(self.project_suffix);
         let mut store_path = self.path.clone();
         store_path.push(project_name);
-        return store_path;
+        store_path
     }
 
     /// Get the path to the configuration file.
@@ -205,7 +203,7 @@ impl Store<'_> {
         file_name.push(self.project_name);
         file_name.set_extension(self.file_extension);
         store_dir_path.push(file_name);
-        return store_dir_path;
+        store_dir_path
     }
 
     /// Makes the store directory if it does not exist.
@@ -214,7 +212,7 @@ impl Store<'_> {
     ///
     /// Errors if the store directory cannot be created.
     fn make_store_path(&self) -> Result<()> {
-        fs::create_dir(self.get_store_dir_path()).map_err(|e| Error::from(e))
+        fs::create_dir(self.get_store_dir_path()).map_err(Error::from)
     }
 
     /// Makes a new store file. Creates the directory if it doesn't exist.
@@ -222,7 +220,7 @@ impl Store<'_> {
     /// # Errors
     ///
     /// Errors if
-    /// 
+    ///
     /// * The store file directory be created.
     /// * The store file cannot be created.
     /// * The store file cannot be initialized.
@@ -264,7 +262,7 @@ impl Store<'_> {
     ///
     /// Errors if the store file cannot be deleted.
     pub fn delete_store(&self) -> Result<()> {
-        fs::remove_dir_all(self.get_store_dir_path()).map_err(|e| Error::from(e))
+        fs::remove_dir_all(self.get_store_dir_path()).map_err(Error::from)
     }
 
     /// Writes the store file.
@@ -276,9 +274,9 @@ impl Store<'_> {
         #[cfg(feature = "crypto")]
         if let Some(key) = self.encryption_key {
             let encrypted_data = crypto::encrypt_data(&data, key)?;
-            return fs::write(self.get_store_path(), encrypted_data).map_err(|e| Error::from(e));
+            return fs::write(self.get_store_path(), encrypted_data).map_err(Error::from);
         }
-        fs::write(self.get_store_path(), data).map_err(|e| Error::from(e))
+        fs::write(self.get_store_path(), data).map_err(Error::from)
     }
 
     /// Returns the parsed JSON of the store file.
@@ -304,7 +302,7 @@ impl Store<'_> {
     }
 
     fn parse_json(store: String) -> Result<Value> {
-        serde_json::from_str(&store).map_err(|e| Error::from(e))
+        serde_json::from_str(&store).map_err(Error::from)
     }
 
     /// Sets the encryption key. The key must be less than or equal to 32 bytes.
@@ -316,12 +314,12 @@ impl Store<'_> {
             return Err(Error::InvalidKeyLength);
         }
         // probably a better way of doing this...
-        for i in 0..key_bytes.len() {
-            final_bytes[i] = *key_bytes.index(i);
+        for (i, byte) in key_bytes.iter().enumerate() {
+            final_bytes[i] = *byte;
         }
 
         self.encryption_key = Some(final_bytes);
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -354,7 +352,7 @@ mod tests {
         let x = Store::new("store_invalid_set_test").unwrap();
         x.set("x", "test1").unwrap();
         match x.set("x.a", "test2") {
-            Ok(_) => assert!(false),
+            Ok(_) => panic!(),
             Err(e) => assert_eq!(
                 e.to_string(),
                 json_dotpath::Error::BadPathElement.to_string()
@@ -405,7 +403,7 @@ mod tests {
     fn invalid_encryption_key() {
         let mut x = Store::new("invalid_encryption_key_test").unwrap();
         match x.set_encryption_key("test_key_this_key_will_be_too_long") {
-            Ok(_) => assert!(false),
+            Ok(_) => panic!(),
             Err(e) => assert_eq!(e.to_string(), Error::InvalidKeyLength.to_string()),
         };
     }

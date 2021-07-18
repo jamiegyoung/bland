@@ -5,7 +5,7 @@ use aes_gcm::{Aes256Gcm, Key, Nonce};
 /// Encrypts a message with AES-GCM.
 /// The first 12 bytes of the message are the nonce.
 /// The rest of the message is the plaintext.
-pub fn encrypt_data(data: &String, key: [u8; 32]) -> Result<Vec<u8>> {
+pub fn encrypt_data(data: &str, key: [u8; 32]) -> Result<Vec<u8>> {
     let key = Key::from_slice(&key);
     let cipher = Aes256Gcm::new(key);
     let nonce_array: [u8; 12] = rand::random();
@@ -15,7 +15,7 @@ pub fn encrypt_data(data: &String, key: [u8; 32]) -> Result<Vec<u8>> {
         .map_err(|_| Error::Encryption)?;
     let mut final_vec = nonce_array.to_vec();
     final_vec.append(&mut encrypted_data);
-    return Ok(final_vec);
+    Ok(final_vec)
 }
 
 /// Decrypts a message with AES-GCM.
