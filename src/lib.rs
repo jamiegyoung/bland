@@ -89,16 +89,8 @@ impl Store<'_> {
         if !self.store_exists() {
             return Err(Error::NotFound);
         }
-        match self.get_store_as_parsed_json() {
-            Ok(parsed_json) => match DotPaths::dot_get::<Value>(&parsed_json, path) {
-                Ok(res) => match res {
-                    Some(value) => Ok(Some(value)),
-                    None => Ok(None),
-                },
-                Err(e) => Err(Error::from(e)),
-            },
-            Err(err) => Err(err),
-        }
+        let parsed_json = self.get_store_as_parsed_json()?;
+        DotPaths::dot_get::<Value>(&parsed_json, path).map_err(|e| Error::from(e))
     }
 
     /// Sets the given data using a [json dotpath](https://crates.io/crates/json_dotpath).
@@ -150,28 +142,13 @@ impl Store<'_> {
     where
         T: Serialize,
     {
-        match serde_json::to_value(&data) {
-            Ok(json_data) => {
-                if !self.store_exists() {
-                    if let Err(e) = self.create_store() {
-                        return Err(Error::from(e));
-                    };
-                }
-                match self.get_store_as_parsed_json() {
-                    Ok(mut parsed_json) => {
-                        match DotPaths::dot_set(&mut parsed_json, path, json_data) {
-                            Ok(_) => match self.write_store(parsed_json.to_string()) {
-                                Ok(_) => return Ok(()),
-                                Err(e) => Err(Error::from(e)),
-                            },
-                            Err(e) => Err(Error::from(e)),
-                        }
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-            Err(e) => Err(Error::from(e)),
+        let json_data = serde_json::to_value(&data).map_err(|e| Error::from(e))?;
+        if !self.store_exists() {
+            self.create_store()?;
         }
+        let mut parsed_json = self.get_store_as_parsed_json()?;
+        DotPaths::dot_set(&mut parsed_json, path, json_data).map_err(|e| Error::from(e))?;
+        self.write_store(parsed_json.to_string())
     }
 
     /// Deletes the given path from the store.
@@ -200,16 +177,12 @@ impl Store<'_> {
         if !self.store_exists() {
             return Err(Error::NotFound);
         }
-        match self.get_store_as_parsed_json() {
-            Ok(mut parsed_json) => match DotPaths::dot_take::<Value>(&mut parsed_json, path) {
-                Ok(value) => match self.write_store(parsed_json.to_string()) {
-                    Ok(_) => return Ok(value),
-                    Err(e) => Err(Error::from(e)),
-                },
-                Err(e) => Err(Error::from(e)),
-            },
-            Err(e) => Err(e),
-        }
+
+        let mut parsed_json = self.get_store_as_parsed_json()?;
+        let value =
+            DotPaths::dot_take::<Value>(&mut parsed_json, path).map_err(|e| Error::from(e))?;
+        self.write_store(parsed_json.to_string())?;
+        return Ok(value);
     }
 
     pub fn clear(&self) -> Result<()> {
@@ -221,11 +194,10 @@ impl Store<'_> {
 
     /// Get the path to the directory where the configuration data is stored.
     pub fn get_store_dir_path(&self) -> PathBuf {
-        let mut store_path = self.path.clone();
         let mut project_name = self.project_name.to_owned();
         project_name.push_str("-");
         project_name.push_str(self.project_suffix);
-
+        let mut store_path = self.path.clone();
         store_path.push(project_name);
         return store_path;
     }
@@ -262,13 +234,8 @@ impl Store<'_> {
                 return Err(e);
             };
         }
-        match File::create(self.get_store_path()) {
-            Ok(_) => match self.init_store() {
-                Ok(_) => return Ok(()),
-                Err(e) => Err(e),
-            },
-            Err(e) => Err(Error::from(e)),
-        }
+        File::create(self.get_store_path()).map_err(|e| Error::from(e))?;
+        self.init_store()
     }
 
     /// Initializes the store file.
@@ -278,10 +245,6 @@ impl Store<'_> {
     /// Errors if the store file cannot be wrote to.
     fn init_store(&self) -> Result<()> {
         self.write_store("{}".to_string())
-        // match file.write_all("{}".as_bytes()) {
-        //     Ok(_) => Ok(()),
-        //     Err(e) => Err(Error::from(e)),
-        // }
     }
 
     /// Returns a boolean indicating whether the store directory exists.
@@ -335,26 +298,17 @@ impl Store<'_> {
             Some(key) => {
                 let encrypted_data = fs::read(self.get_store_path())?;
                 let data = crypto::decrypt_data(encrypted_data, key)?;
-                match Store::parse_json(data) {
-                    Ok(value) => Ok(value),
-                    Err(e) => Err(Error::from(e)),
-                }
+                Store::parse_json(data).map_err(|e| Error::from(e))
             }
             None => match fs::read_to_string(self.get_store_path()) {
-                Ok(store) => match Store::parse_json(store) {
-                    Ok(value) => Ok(value),
-                    Err(e) => Err(Error::from(e)),
-                },
+                Ok(store) => Store::parse_json(store).map_err(|e| Error::from(e)),
                 Err(e) => Err(Error::from(e)),
             },
         }
     }
 
     fn parse_json(store: String) -> Result<Value> {
-        match serde_json::from_str(&store) {
-            Ok(parsed_json) => return Ok(parsed_json),
-            Err(e) => Err(Error::from(e)),
-        }
+        serde_json::from_str(&store).map_err(|e| Error::from(e))
     }
 
     /// Sets the encryption key. The key must be less than or equal to 32 bytes.
@@ -460,5 +414,6 @@ mod tests {
         x.set_encryption_key("test_key").unwrap();
         x.set("a", "test1").unwrap();
         assert_eq!(x.get("a").unwrap().unwrap(), "test1");
+        clean_store(&x);
     }
 }
