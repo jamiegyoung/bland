@@ -221,9 +221,9 @@ impl Store<'_> {
     ///
     /// # Errors
     ///
-    /// Errors if the store file directory be created.
-    /// Errors if the store file cannot be created.
-    /// Errors is the store file cannot be initialized.
+    /// * Errors if the store file directory be created.
+    /// * Errors if the store file cannot be created.
+    /// * Errors is the store file cannot be initialized.
     pub fn create_store(&self) -> Result<()> {
         if !self.store_dir_exists() {
             if let Err(e) = self.make_store_path() {
@@ -283,9 +283,9 @@ impl Store<'_> {
     ///
     /// # Errors
     ///
-    /// Errors if the store file does not exist.
-    /// Errors if the store file cannot be read.
-    /// Errors if the store file cannot be deserialized.
+    /// * Errors if the store file does not exist.
+    /// * Errors if the store file cannot be read.
+    /// * Errors if the store file cannot be deserialized.
     fn get_store_as_parsed_json(&self) -> Result<Value> {
         if !self.store_exists() {
             return Err(Error::NotFound);
