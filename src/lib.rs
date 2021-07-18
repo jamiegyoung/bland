@@ -84,9 +84,9 @@ impl Store<'_> {
     /// # Errors
     ///
     /// Errors if
-    /// * the store does not exist.
-    /// * it fails to read the store file.
-    /// * the store cannot be deserialized.
+    /// * The store does not exist.
+    /// * It fails to read the store file.
+    /// * The store cannot be deserialized.
     /// * `path` is not a valid dot path.
     /// * `path` attempts to access an index out of bounds.
     pub fn get(&self, path: &str) -> Result<Option<Value>> {
@@ -137,10 +137,10 @@ impl Store<'_> {
     /// # Errors
     ///
     /// Errors if
-    /// * the store fails to be created.
-    /// * it fails to read the store file.
-    /// * the store cannot be deserialized.
-    /// * the store file fails to be written to.
+    /// * The store fails to be created.
+    /// * It fails to read the store file.
+    /// * The store cannot be deserialized.
+    /// * The store file fails to be written to.
     /// * `path` is not a valid dot path.
     pub fn set<T>(&self, path: &str, data: T) -> Result<()>
     where
@@ -172,10 +172,10 @@ impl Store<'_> {
     /// # Errors
     ///
     /// Errors if
-    /// * the store does not exist.
-    /// * it fails to read the store file.
-    /// * the store cannot be deserialized.
-    /// * the store file fails to be written to.
+    /// * The store does not exist.
+    /// * It fails to read the store file.
+    /// * The store cannot be deserialized.
+    /// * The store file fails to be written to.
     /// * `path` is not a valid dot path.
     pub fn delete(&self, path: &str) -> Result<Option<Value>> {
         if !self.store_exists() {
@@ -221,9 +221,11 @@ impl Store<'_> {
     ///
     /// # Errors
     ///
-    /// * Errors if the store file directory be created.
-    /// * Errors if the store file cannot be created.
-    /// * Errors is the store file cannot be initialized.
+    /// Errors if
+    /// 
+    /// * The store file directory be created.
+    /// * The store file cannot be created.
+    /// * The store file cannot be initialized.
     pub fn create_store(&self) -> Result<()> {
         if !self.store_dir_exists() {
             if let Err(e) = self.make_store_path() {
