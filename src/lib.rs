@@ -185,13 +185,6 @@ impl Store<'_> {
         return Ok(value);
     }
 
-    pub fn clear(&self) -> Result<()> {
-        if !self.store_exists() {
-            return Err(Error::NotFound);
-        }
-        self.write_store("{}".to_string())
-    }
-
     /// Get the path to the directory where the configuration data is stored.
     pub fn get_store_dir_path(&self) -> PathBuf {
         let mut project_name = self.project_name.to_owned();
@@ -238,7 +231,8 @@ impl Store<'_> {
         self.init_store()
     }
 
-    /// Initializes the store file.
+    /// Initializes the store file. This will initilize the store as either 
+    /// encrypted or not depdending on if the encryption key is set.
     ///
     /// # Errors
     ///
@@ -374,13 +368,13 @@ mod tests {
     }
 
     #[test]
-    fn clear() {
+    fn init() {
         let x = Store::new("clear_test").unwrap();
         x.set("a.b", "test1").unwrap();
         x.set("c", [4, 2, 7]).unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
         assert_eq!(x.get("c").unwrap().unwrap().as_array().unwrap().len(), 3);
-        x.clear().unwrap();
+        x.init_store().unwrap();
         assert_eq!(x.get("a.b").unwrap(), None);
         assert_eq!(x.get("c").unwrap(), None);
         clean_store(&x);
