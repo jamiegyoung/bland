@@ -237,7 +237,7 @@ impl Store<'_> {
     /// # Errors
     ///
     /// Errors if the store file cannot be wrote to.
-    fn init_store(&self) -> Result<()> {
+    pub fn init_store(&self) -> Result<()> {
         self.write_store("{}".to_string())
     }
 
