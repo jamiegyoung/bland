@@ -2,7 +2,7 @@
 mod crypto;
 /// A simple to use config storage library for Rust.
 mod error;
-use error::Error;
+pub use error::Error;
 #[cfg(feature = "compression")]
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};
 use json_dotpath::DotPaths;
@@ -27,13 +27,13 @@ pub struct Store<'a> {
     /// The base directory for the store.
     path: PathBuf,
     /// The project's name
-    pub project_name: &'a str,
+    project_name: &'a str,
     /// The configuration name
-    pub config_name: &'a str,
+    config_name: &'a str,
     /// The file extension for configuration files.
-    pub file_extension: &'a str,
+    file_extension: &'a str,
     /// The project name's suffix
-    pub project_suffix: &'a str,
+    project_suffix: &'a str,
     /// An optional encrpytion key for the store.
     #[cfg(feature = "crypto")]
     encryption_key: Option<[u8; 32]>,
@@ -41,7 +41,7 @@ pub struct Store<'a> {
     compressed: bool,
 }
 
-impl Store<'_> {
+impl<'a> Store<'a> {
     /// Creates a new instance of the store requiring the project's name.
     /// This name will be used as the folder name to store the configuration data.
     /// The default store location is the application configuration directory.
@@ -323,6 +323,42 @@ impl Store<'_> {
         serde_json::from_str(&store).map_err(Error::from)
     }
 
+    pub fn get_path(&self) -> PathBuf {
+        self.path.clone()
+    }
+
+    pub fn set_project_name(&mut self, name: &'a str) {
+        self.project_name = name;
+    }
+
+    pub fn get_project_name(&self) -> &str {
+        self.project_name
+    }
+
+    pub fn set_config_name(&mut self, config_name: &'a str) {
+        self.config_name = config_name;
+    }
+
+    pub fn get_config_name(&self) -> &str {
+        self.config_name
+    }
+
+    pub fn set_project_suffix(&mut self, suffix: &'a str) {
+        self.project_suffix = suffix;
+    }
+
+    pub fn get_project_suffix(&self) -> &str {
+        self.project_suffix
+    }
+
+    pub fn set_file_extension(&mut self, extension: &'a str) {
+        self.file_extension = extension;
+    }
+
+    pub fn get_file_extension(&self) -> &str {
+        self.file_extension
+    }
+
     /// Sets the encryption key. The key must be less than or equal to 32 bytes.
     #[cfg(feature = "crypto")]
     pub fn set_encryption_key(&mut self, key: &str) -> Result<()> {
@@ -338,6 +374,11 @@ impl Store<'_> {
 
         self.encryption_key = Some(final_bytes);
         Ok(())
+    }
+    
+    #[cfg(feature = "crypto")]
+    pub fn get_encryption_key(&self) -> Option<[u8; 32]> {
+        self.encryption_key
     }
 
     #[cfg(feature = "compression")]
@@ -424,13 +465,49 @@ mod tests {
         clean_store(&x);
     }
 
+    #[test]
+    fn set_get_config_name() {
+        let mut x = Store::new("store_set_config_name_test").unwrap();
+        x.set_config_name("test");
+        x.init_store().unwrap();
+        assert_eq!(x.get_config_name(), "test");
+        clean_store(&x)
+    }
+
+    #[test]
+    fn set_get_project_name() {
+        let mut x = Store::new("store_set_config_name_test").unwrap();
+        x.set_project_name("test");
+        x.init_store().unwrap();
+        assert_eq!(x.get_project_name(), "test");
+        clean_store(&x)
+    }
+
+    #[test]
+    fn set_get_project_suffix() {
+        let mut x = Store::new("store_set_project_suffix_test").unwrap();
+        x.set_project_suffix("test");
+        x.init_store().unwrap();
+        assert_eq!(x.get_project_suffix(), "test");
+        clean_store(&x)
+    }
+
+    #[test]
+    fn set_get_file_extension() {
+        let mut x = Store::new("store_set_file_extension_test").unwrap();
+        x.set_file_extension("test");
+        x.init_store().unwrap();
+        assert_eq!(x.get_file_extension(), "test");
+        clean_store(&x)
+    }
+
     #[cfg(feature = "crypto")]
     #[test]
     fn set_encryption_key() {
         let mut x = Store::new("set_encryption_key_test").unwrap();
         x.set_encryption_key("test_key").unwrap();
         assert_eq!(
-            x.encryption_key,
+            x.get_encryption_key(),
             Some([
                 116, 101, 115, 116, 95, 107, 101, 121, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, 0, 0, 0, 0
