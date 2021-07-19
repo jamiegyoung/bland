@@ -26,7 +26,6 @@ pub fn decrypt_data(data: Vec<u8>, key: [u8; 32]) -> Result<String> {
     let cipher = Aes256Gcm::new(key);
     let (nonce_slice, data_slice) = data.split_at(12);
     let nonce = Nonce::from_slice(nonce_slice);
-    println!("nonce: {:?}", nonce);
     let encrypted_data = cipher
         .decrypt(nonce, data_slice.as_ref())
         .map_err(|_| Error::Decryption)?;
