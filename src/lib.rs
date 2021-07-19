@@ -233,7 +233,7 @@ impl<'a> Store<'a> {
     /// * The store file cannot be created.
     /// * The store file cannot be initialized.
     /// * The store file cannot be wrote to.
-    fn init_store(&self) -> Result<()> {
+    pub fn init_store(&self) -> Result<()> {
         if !self.store_dir_exists() {
             if let Err(e) = self.make_store_path() {
                 return Err(e);
@@ -375,7 +375,7 @@ impl<'a> Store<'a> {
         self.encryption_key = Some(final_bytes);
         Ok(())
     }
-    
+
     #[cfg(feature = "crypto")]
     pub fn get_encryption_key(&self) -> Option<[u8; 32]> {
         self.encryption_key
@@ -469,7 +469,6 @@ mod tests {
     fn set_get_config_name() {
         let mut x = Store::new("store_set_config_name_test").unwrap();
         x.set_config_name("test");
-        x.init_store().unwrap();
         assert_eq!(x.get_config_name(), "test");
         clean_store(&x)
     }
@@ -478,7 +477,6 @@ mod tests {
     fn set_get_project_name() {
         let mut x = Store::new("store_set_config_name_test").unwrap();
         x.set_project_name("test");
-        x.init_store().unwrap();
         assert_eq!(x.get_project_name(), "test");
         clean_store(&x)
     }
@@ -487,7 +485,6 @@ mod tests {
     fn set_get_project_suffix() {
         let mut x = Store::new("store_set_project_suffix_test").unwrap();
         x.set_project_suffix("test");
-        x.init_store().unwrap();
         assert_eq!(x.get_project_suffix(), "test");
         clean_store(&x)
     }
@@ -496,7 +493,6 @@ mod tests {
     fn set_get_file_extension() {
         let mut x = Store::new("store_set_file_extension_test").unwrap();
         x.set_file_extension("test");
-        x.init_store().unwrap();
         assert_eq!(x.get_file_extension(), "test");
         clean_store(&x)
     }
