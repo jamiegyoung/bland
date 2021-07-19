@@ -10,9 +10,11 @@ dirs = "3.0.2"
 serde_json = "1.0.64"
 serde = "1.0.126"
 json_dotpath = "1.1.0"
+flate2 = { version = "1.0.20", optional = true }
 aes-gcm = { version = "0.9.2", optional = true }
 rand = {version = "0.8.4", optional = true }
 
 [features]
 # Provide encryption and decryption functionalities.
 crypto = ["aes-gcm", "rand"]
+compression = ["flate2"]
