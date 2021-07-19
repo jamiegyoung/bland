@@ -536,7 +536,7 @@ mod tests {
     #[test]
     fn compression() {
         let mut x = Store::new("compression_test").unwrap();
-        x.compressed = true;
+        x.set_compressed(true);
         let data = "test_data";
         x.set("a", data).unwrap();
         assert_eq!(x.get("a").unwrap().unwrap(), data);
@@ -549,11 +549,11 @@ mod tests {
     #[test]
     fn compression_and_encryption() {
         let mut x = Store::new("compression_encryption_test").unwrap();
-        x.compressed = true;
+        x.set_compressed(true);
         x.set_encryption_key("the encryption key").unwrap();
         let data = "test data";
         x.set("a", data).unwrap();
-        x.compressed = false;
+        x.set_compressed(false);
         assert_eq!(x.get("a").unwrap().unwrap(), data);
         clean_store(&x);
     }
