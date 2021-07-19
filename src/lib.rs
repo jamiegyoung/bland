@@ -367,10 +367,15 @@ mod tests {
     #[test]
     fn set_get() {
         let x = Store::new("store_get_test").unwrap();
-        x.set("a.b", "test1").unwrap();
-        x.set("c", [4, 2, 7]).unwrap();
-        assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
-        assert_eq!(x.get("c").unwrap().unwrap().as_array().unwrap().len(), 3);
+        let data_1 = "test1";
+        let data_2 = [4, 2, 7];
+        x.set("a.b", data_1).unwrap();
+        x.set("c", data_2).unwrap();
+        assert_eq!(x.get("a.b").unwrap().unwrap(), data_1);
+        assert_eq!(
+            x.get("c").unwrap().unwrap().as_array().unwrap().len(),
+            data_2.len()
+        );
         assert_eq!(x.get("d").unwrap(), None);
         clean_store(&x);
     }
@@ -392,8 +397,9 @@ mod tests {
     #[test]
     fn delete() {
         let x = Store::new("store_delete_test").unwrap();
-        x.set("a.b", "test1").unwrap();
-        assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
+        let data = "test1";
+        x.set("a.b", data).unwrap();
+        assert_eq!(x.get("a.b").unwrap().unwrap(), data);
         x.delete("a").unwrap();
         assert_eq!(x.get("a").unwrap(), None);
         clean_store(&x);
@@ -402,10 +408,16 @@ mod tests {
     #[test]
     fn init() {
         let x = Store::new("clear_test").unwrap();
-        x.set("a.b", "test1").unwrap();
-        x.set("c", [4, 2, 7]).unwrap();
-        assert_eq!(x.get("a.b").unwrap().unwrap(), "test1");
-        assert_eq!(x.get("c").unwrap().unwrap().as_array().unwrap().len(), 3);
+        let data_1 = "test1";
+        let data_2 = [4, 2, 7];
+
+        x.set("a.b", data_1).unwrap();
+        x.set("c", data_2).unwrap();
+        assert_eq!(x.get("a.b").unwrap().unwrap(), data_1);
+        assert_eq!(
+            x.get("c").unwrap().unwrap().as_array().unwrap().len(),
+            data_2.len()
+        );
         x.init_store().unwrap();
         assert_eq!(x.get("a.b").unwrap(), None);
         assert_eq!(x.get("c").unwrap(), None);
@@ -441,8 +453,9 @@ mod tests {
     fn crypto() {
         let mut x = Store::new("crypto_test").unwrap();
         x.set_encryption_key("test_key").unwrap();
-        x.set("a", "test1").unwrap();
-        assert_eq!(x.get("a").unwrap().unwrap(), "test1");
+        let data = "test_data";
+        x.set("a", data).unwrap();
+        assert_eq!(x.get("a").unwrap().unwrap(), data);
         clean_store(&x);
     }
 
@@ -451,13 +464,7 @@ mod tests {
     fn compression() {
         let mut x = Store::new("compression_test").unwrap();
         x.compressed = true;
-        let data = "
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin eu sem euismod, luctus diam non, dignissim enim. Proin iaculis condimentum mattis. Donec sagittis gravida urna eget faucibus. Vestibulum vel iaculis neque. Cras varius nisi convallis diam semper mattis. Pellentesque nec lectus risus. Proin egestas ultricies ligula, eu convallis arcu condimentum sed. Maecenas ligula urna, faucibus sit amet porta sit amet, laoreet at diam. Curabitur hendrerit, ipsum eget luctus porttitor, lectus lectus aliquam quam, in ullamcorper risus elit in purus. Nunc elementum nisi in felis commodo, vel rhoncus purus blandit. Mauris non lectus at lorem sodales dapibus. Nulla viverra libero vitae malesuada laoreet. Integer nulla est, tristique eget nibh id, luctus commodo velit. Nullam viverra ante eget risus sollicitudin laoreet. Nullam placerat, nisl vel euismod venenatis, quam ante faucibus tellus, sed condimentum urna arcu consequat ipsum. Curabitur interdum, odio a ultrices mattis, purus magna semper dui, non tristique libero justo ut arcu.
-            Sed risus risus, fringilla nec lobortis sed, pretium eget ligula. Mauris placerat tincidunt massa eu condimentum. Sed dapibus diam nec mattis pretium. Praesent gravida erat facilisis diam sodales, eget malesuada ligula aliquam. Duis sed rutrum dui. Pellentesque ultricies augue velit. Praesent eu consectetur sapien.
-            Phasellus hendrerit eros quis dui efficitur dignissim. Pellentesque augue lacus, sagittis eget aliquam vel, sollicitudin ac eros. In tempor enim velit, in sodales risus tristique nec. Phasellus vulputate non massa quis malesuada. Aenean pulvinar, tortor sit amet laoreet finibus, lorem lectus congue sapien, at vestibulum augue ipsum at quam. Pellentesque porta convallis convallis. Integer maximus convallis elit, at iaculis arcu porttitor sit amet. Quisque gravida tempus elit non efficitur. Sed euismod, orci sit amet finibus malesuada, magna erat dapibus tortor, congue volutpat mauris magna id lectus. Nunc pellentesque eleifend velit, nec eleifend diam pulvinar vitae. Duis tempus eros lectus, eget bibendum ipsum lacinia sed. Pellentesque at interdum purus. Vivamus placerat eu justo ut egestas. Etiam semper volutpat massa quis facilisis. Sed eu luctus arcu.
-            Duis eget eros et lectus iaculis scelerisque in ac odio. Etiam vehicula, justo vel pulvinar dignissim, felis orci cursus justo, sit amet elementum sapien nulla vitae augue. Proin eu purus dui. Nam sagittis dictum orci, a scelerisque arcu pulvinar eget. Ut sit amet pellentesque sem. Sed eu erat ac ipsum condimentum faucibus nec id metus. Quisque a velit porta, pulvinar dui eu, finibus magna. Vivamus facilisis mi mi, ultrices congue erat interdum commodo. Nullam eget pharetra turpis. Nunc in sem in nibh consectetur finibus. Nunc purus eros, faucibus et elementum ac, faucibus eget metus.
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed commodo nulla eget metus placerat, vel dapibus mauris interdum. Etiam eget commodo nulla. Sed vehicula dui lacus, in eleifend dui tincidunt non. Donec id consequat ipsum, at iaculis nunc. In posuere odio ut metus cursus, non facilisis enim feugiat. Morbi tortor sem, hendrerit nec suscipit vel, accumsan sed est. Aenean ac venenatis dolor, eget sagittis lorem. Ut in facilisis erat. Mauris velit lectus, bibendum at nisl ac, porttitor lobortis mauris. Phasellus ac porttitor ipsum. Donec tristique laoreet tortor, vitae tincidunt lectus efficitur a. Sed ut semper lorem. ";
-        x.init_store().unwrap();
+        let data = "test_data";
         x.set("a", data).unwrap();
         assert_eq!(x.get("a").unwrap().unwrap(), data);
         clean_store(&x);
@@ -471,14 +478,7 @@ mod tests {
         let mut x = Store::new("compression_encryption_test").unwrap();
         x.compressed = true;
         x.set_encryption_key("the encryption key").unwrap();
-        let data = "
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin eu sem euismod, luctus diam non, dignissim enim. Proin iaculis condimentum mattis. Donec sagittis gravida urna eget faucibus. Vestibulum vel iaculis neque. Cras varius nisi convallis diam semper mattis. Pellentesque nec lectus risus. Proin egestas ultricies ligula, eu convallis arcu condimentum sed. Maecenas ligula urna, faucibus sit amet porta sit amet, laoreet at diam. Curabitur hendrerit, ipsum eget luctus porttitor, lectus lectus aliquam quam, in ullamcorper risus elit in purus. Nunc elementum nisi in felis commodo, vel rhoncus purus blandit. Mauris non lectus at lorem sodales dapibus. Nulla viverra libero vitae malesuada laoreet. Integer nulla est, tristique eget nibh id, luctus commodo velit. Nullam viverra ante eget risus sollicitudin laoreet. Nullam placerat, nisl vel euismod venenatis, quam ante faucibus tellus, sed condimentum urna arcu consequat ipsum. Curabitur interdum, odio a ultrices mattis, purus magna semper dui, non tristique libero justo ut arcu.
-            Sed risus risus, fringilla nec lobortis sed, pretium eget ligula. Mauris placerat tincidunt massa eu condimentum. Sed dapibus diam nec mattis pretium. Praesent gravida erat facilisis diam sodales, eget malesuada ligula aliquam. Duis sed rutrum dui. Pellentesque ultricies augue velit. Praesent eu consectetur sapien.
-            Phasellus hendrerit eros quis dui efficitur dignissim. Pellentesque augue lacus, sagittis eget aliquam vel, sollicitudin ac eros. In tempor enim velit, in sodales risus tristique nec. Phasellus vulputate non massa quis malesuada. Aenean pulvinar, tortor sit amet laoreet finibus, lorem lectus congue sapien, at vestibulum augue ipsum at quam. Pellentesque porta convallis convallis. Integer maximus convallis elit, at iaculis arcu porttitor sit amet. Quisque gravida tempus elit non efficitur. Sed euismod, orci sit amet finibus malesuada, magna erat dapibus tortor, congue volutpat mauris magna id lectus. Nunc pellentesque eleifend velit, nec eleifend diam pulvinar vitae. Duis tempus eros lectus, eget bibendum ipsum lacinia sed. Pellentesque at interdum purus. Vivamus placerat eu justo ut egestas. Etiam semper volutpat massa quis facilisis. Sed eu luctus arcu.
-            Duis eget eros et lectus iaculis scelerisque in ac odio. Etiam vehicula, justo vel pulvinar dignissim, felis orci cursus justo, sit amet elementum sapien nulla vitae augue. Proin eu purus dui. Nam sagittis dictum orci, a scelerisque arcu pulvinar eget. Ut sit amet pellentesque sem. Sed eu erat ac ipsum condimentum faucibus nec id metus. Quisque a velit porta, pulvinar dui eu, finibus magna. Vivamus facilisis mi mi, ultrices congue erat interdum commodo. Nullam eget pharetra turpis. Nunc in sem in nibh consectetur finibus. Nunc purus eros, faucibus et elementum ac, faucibus eget metus.
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed commodo nulla eget metus placerat, vel dapibus mauris interdum. Etiam eget commodo nulla. Sed vehicula dui lacus, in eleifend dui tincidunt non. Donec id consequat ipsum, at iaculis nunc. In posuere odio ut metus cursus, non facilisis enim feugiat. Morbi tortor sem, hendrerit nec suscipit vel, accumsan sed est. Aenean ac venenatis dolor, eget sagittis lorem. Ut in facilisis erat. Mauris velit lectus, bibendum at nisl ac, porttitor lobortis mauris. Phasellus ac porttitor ipsum. Donec tristique laoreet tortor, vitae tincidunt lectus efficitur a. Sed ut semper lorem. ";
-
-        x.init_store().unwrap();
+        let data = "test data";
         x.set("a", data).unwrap();
         x.compressed = false;
         assert_eq!(x.get("a").unwrap().unwrap(), data);
