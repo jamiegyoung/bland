@@ -327,6 +327,10 @@ impl<'a> Store<'a> {
         self.path.clone()
     }
 
+    pub fn set_path(&mut self, new_path: PathBuf) {
+        self.path = new_path
+    }
+
     pub fn set_project_name(&mut self, name: &'a str) {
         self.project_name = name;
     }
@@ -394,6 +398,8 @@ impl<'a> Store<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::Store;
 
     #[cfg(feature = "crypto")]
@@ -407,7 +413,8 @@ mod tests {
 
     #[test]
     fn set_get() {
-        let x = Store::new("store_get_test").unwrap();
+        let mut x = Store::new("store_get_test").unwrap();
+        x.set_path(PathBuf::from("./"));
         let data_1 = "test1";
         let data_2 = [4, 2, 7];
         x.set("a.b", data_1).unwrap();
@@ -423,7 +430,8 @@ mod tests {
 
     #[test]
     fn invalid_set() {
-        let x = Store::new("store_invalid_set_test").unwrap();
+        let mut x = Store::new("store_invalid_set_test").unwrap();
+        x.set_path(PathBuf::from("./"));
         x.set("x", "test1").unwrap();
         match x.set("x.a", "test2") {
             Ok(_) => panic!(),
@@ -437,7 +445,8 @@ mod tests {
 
     #[test]
     fn delete() {
-        let x = Store::new("store_delete_test").unwrap();
+        let mut x = Store::new("store_delete_test").unwrap();
+        x.set_path(PathBuf::from("./"));
         let data = "test1";
         x.set("a.b", data).unwrap();
         assert_eq!(x.get("a.b").unwrap().unwrap(), data);
@@ -448,7 +457,8 @@ mod tests {
 
     #[test]
     fn init() {
-        let x = Store::new("clear_test").unwrap();
+        let mut x = Store::new("clear_test").unwrap();
+        x.set_path(PathBuf::from("./"));
         let data_1 = "test1";
         let data_2 = [4, 2, 7];
 
