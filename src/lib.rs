@@ -207,7 +207,7 @@ impl<'a> Store<'a> {
     pub fn get_store_path(&self) -> PathBuf {
         let mut store_dir_path = self.get_store_dir_path();
         let mut file_name = PathBuf::new();
-        file_name.push(self.project_name);
+        file_name.push(self.config_name);
         file_name.set_extension(self.file_extension);
         store_dir_path.push(file_name);
         store_dir_path
