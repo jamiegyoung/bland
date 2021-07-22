@@ -34,6 +34,8 @@ pub struct Store<'a> {
     file_extension: &'a str,
     /// The project name's suffix
     project_suffix: &'a str,
+    /// Whether the configuration files should be human readable or not.
+    pretty: bool,
     /// An optional encrpytion key for the store.
     #[cfg(feature = "crypto")]
     encryption_key: Option<[u8; 32]>,
@@ -64,6 +66,7 @@ impl<'a> Store<'a> {
                     config_name: "config",
                     file_extension: "json",
                     project_suffix: "rs",
+                    pretty: false,
                     #[cfg(feature = "crypto")]
                     encryption_key: None,
                     #[cfg(feature = "compression")]
@@ -157,7 +160,7 @@ impl<'a> Store<'a> {
         }
         let mut parsed_json = self.get_store_as_parsed_json()?;
         DotPaths::dot_set(&mut parsed_json, path, json_data)?;
-        self.write_store(parsed_json.to_string())
+        self.write_value(parsed_json)
     }
 
     /// Deletes the given path from the store.
@@ -189,7 +192,7 @@ impl<'a> Store<'a> {
 
         let mut parsed_json = self.get_store_as_parsed_json()?;
         let value = DotPaths::dot_take::<Value>(&mut parsed_json, path)?;
-        self.write_store(parsed_json.to_string())?;
+        self.write_value(parsed_json)?;
         Ok(value)
     }
 
@@ -269,13 +272,21 @@ impl<'a> Store<'a> {
     /// # Errors
     ///
     /// Errors if the store file cannot be written to.
-    fn write_store(&self, data: String) -> Result<()> {
+    fn write_value(&self, value: Value) -> Result<()> {
+        // self.write_store(serde_json::to_string_pretty(&data)?)
+        match self.pretty {
+            true => self.write_store(serde_json::to_string_pretty(&value)?),
+            false => self.write_store(value.to_string())
+        }
+    }
+    
+    fn write_store(&self, data: String) -> Result<()> {        
         #[cfg(feature = "crypto")]
         if let Some(key) = self.encryption_key {
             let encrypted_data = crypto::encrypt_data(&data, key)?;
             return fs::write(self.get_store_path(), encrypted_data).map_err(Error::from);
         }
-
+    
         #[cfg(feature = "compression")]
         if self.get_compressed() {
             let mut e = GzEncoder::new(Vec::new(), Compression::default());
@@ -284,7 +295,7 @@ impl<'a> Store<'a> {
             let compressed_data = e.finish()?;
             return fs::write(self.get_store_path(), compressed_data).map_err(Error::from);
         }
-
+    
         fs::write(self.get_store_path(), data).map_err(Error::from)
     }
 
@@ -359,6 +370,10 @@ impl<'a> Store<'a> {
         self.file_extension = extension;
     }
 
+    pub fn set_pretty(&mut self, pretty: bool) {
+        self.pretty = pretty;
+    }
+
     pub fn get_file_extension(&self) -> &str {
         self.file_extension
     }
@@ -415,6 +430,7 @@ mod tests {
     fn set_get() {
         let mut x = Store::new("store_get_test").unwrap();
         x.set_path(PathBuf::from("./"));
+        x.set_config_name("2");
         let data_1 = "test1";
         let data_2 = [4, 2, 7];
         x.set("a.b", data_1).unwrap();
