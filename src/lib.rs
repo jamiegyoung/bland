@@ -228,7 +228,7 @@ impl<'a> Store<'a> {
     /// Initializes the store file.
 
     /// *NOTE* This will initilize the store as either encrypted or
-    /// not depdending on if the encryption key is set.
+    /// plain text depending on if the encryption key is set.
     ///
     /// # Errors
     ///
